@@ -223,8 +223,29 @@ namespace filewatch {
 			StringType filename;
 		};
 
+        static StringType make_string_type() {
+            return StringType{};
+        }
+
+        static StringType make_string_type(const UnderpinningString& value) {
+            return StringType{value};
+        }
+
+        static StringType make_string_type(UnderpinningString&& value) {
+            return StringType{std::move(value)};
+        }
+
+        static StringType make_string_type(const C* data) {
+            return make_string_type(UnderpinningString{data});
+        }
+
         static StringType make_string_type(const C* data, std::size_t size) {
-            return StringType{UnderpinningString{data, size}};
+            return make_string_type(UnderpinningString{data, size});
+        }
+
+        template<std::size_t Size>
+        static StringType make_string_type(const std::array<C, Size>& data, std::size_t size) {
+            return make_string_type(data.data(), size);
         }
 
 		const StringType _path;
@@ -540,7 +561,7 @@ namespace filewatch {
 						convert_wstring(changed_file_w, changed_file);
 						if (pass_filter(changed_file))
 						{
-							parsed_information.emplace_back(StringType{ changed_file }, _event_type_mapping.at(file_information->Action));
+							parsed_information.emplace_back(make_string_type(changed_file), _event_type_mapping.at(file_information->Action));
 						}
 
 						if (file_information->NextEntryOffset == 0) {
@@ -639,15 +660,15 @@ namespace filewatch {
 							{
 								if (event->mask & IN_CREATE) 
 								{
-									parsed_information.emplace_back(StringType{ changed_file }, Event::added);
+									parsed_information.emplace_back(make_string_type(changed_file), Event::added);
 								}
 								else if (event->mask & IN_DELETE) 
 								{
-									parsed_information.emplace_back(StringType{ changed_file }, Event::removed);
+									parsed_information.emplace_back(make_string_type(changed_file), Event::removed);
 								}
 								else if (event->mask & IN_MODIFY) 
 								{
-									parsed_information.emplace_back(StringType{ changed_file }, Event::modified);
+									parsed_information.emplace_back(make_string_type(changed_file), Event::modified);
 								}
 							}
 						}
@@ -696,7 +717,7 @@ namespace filewatch {
                         mbsrtowcs((wchar_t*)&s[0], &str, s.size(), &state);
                         return s;
                   }
-                  return StringType {buf};
+                  return make_string_type(buf);
             }
 #elif defined(__unix__)
             static StringType absolute_path_of(const StringType& path) {
@@ -727,7 +748,7 @@ namespace filewatch {
                         mbsrtowcs((wchar_t*)&s[0], &str, s.size(), &state);
                         return s;
                   }
-                  return StringType {buf};
+                  return make_string_type(buf);
             }
 #elif _WIN32
             static StringType absolute_path_of(const StringType& path) {
@@ -775,7 +796,7 @@ namespace filewatch {
                               struct dirent* dirent = (struct dirent*)current;
                               StringType name = IsWChar<C>::value? 
                                     utf8StringToUtf32String(dirent->d_name) 
-                                    : StringType(dirent->d_name);
+                                    : make_string_type(dirent->d_name);
                               
                               callback(std::move(name));
                               current += dirent->d_reclen;
@@ -791,7 +812,7 @@ namespace filewatch {
                   char buf[MAXPATHLEN];
 
                   if (fcntl(fd, F_GETPATH, buf) == -1) {
-                        return StringType{};
+                        return make_string_type();
                   }
                   if (IsWChar<C>::value) {
                         return utf8StringToUtf32String(buf);
@@ -810,12 +831,12 @@ namespace filewatch {
                   char buf[MAXPATHLEN];
 
                   if (fcntl(fd, F_GETPATH, buf) == -1) {
-                        return StringType{};
+                        return make_string_type();
                   }
                   if (IsWChar<C>::value) {
                         return utf8StringToUtf32String(buf);
                   }
-                  return StringType{(C*)buf};
+                  return make_string_type((C*)buf);
             }
 
             static StringType pathOfFd(int fd) {
@@ -823,7 +844,7 @@ namespace filewatch {
                   char buf[MAXPATHLEN];
 
                   if (fcntl(fd, F_GETPATH, buf) == -1) {
-                        return StringType{};
+                        return make_string_type();
                   }
                   if (IsWChar<C>::value) {
                         return utf8StringToUtf32String(buf);
