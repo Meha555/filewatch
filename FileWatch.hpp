@@ -222,6 +222,11 @@ namespace filewatch {
 			StringType directory;
 			StringType filename;
 		};
+
+        static StringType make_string_type(const C* data, std::size_t size) {
+            return StringType{UnderpinningString{data, size}};
+        }
+
 		const StringType _path;
 
 		UnderpinningRegex _pattern;
@@ -727,18 +732,15 @@ namespace filewatch {
 #elif _WIN32
             static StringType absolute_path_of(const StringType& path) {
                   constexpr size_t size = IsWChar<C>::value? MAX_PATH : 32767 * sizeof(wchar_t);
-                  char buf[size];
+                  std::array<C, size> buf{};
+                  DWORD length = 0;
 
-                  DWORD length = IsWChar<C>::value? 
-                        GetFullPathNameW((LPCWSTR)path.c_str(), 
-                              size / sizeof(TCHAR),
-                              (LPWSTR)buf,
-                              nullptr) : 
-                        GetFullPathNameA((LPCSTR)path.c_str(), 
-                              size / sizeof(TCHAR),
-                              buf,
-                              nullptr);
-                  return StringType{(C*)buf, length};
+                  if constexpr (IsWChar<C>::value) {
+                        length = GetFullPathNameW(path.c_str(), static_cast<DWORD>(buf.size()), buf.data(), nullptr);
+                  } else {
+                        length = GetFullPathNameA(path.c_str(), static_cast<DWORD>(buf.size()), buf.data(), nullptr);
+                  }
+                  return make_string_type(buf, length);
             }
 #endif
 
@@ -798,10 +800,10 @@ namespace filewatch {
                   len = strnlen(buf, MAXPATHLEN);
                   for (int i = len - 1; i >= 0; i--) {
                         if(buf[i] == '/') {
-                              return StringType{buf + i + 1, len - i - 1};
+                              return make_string_type(buf + i + 1, len - i - 1);
                         }
                   }
-                  return StringType{buf, len};
+                  return make_string_type(buf, len);
             }
 
             static StringType fullPathOfFd(int fd) {
@@ -830,10 +832,10 @@ namespace filewatch {
                   len = strnlen(buf, MAXPATHLEN);
                   for (int i = len - 1; i >= 0; i--) {
                         if(buf[i] == '/') {
-                              return StringType{buf, static_cast<size_t>(i)};
+                              return make_string_type(buf, static_cast<size_t>(i));
                         }
                   }
-                  return StringType{buf, len};
+                  return make_string_type(buf, len);
             }
 
             static bool fdIsRemoved(int fd) {
